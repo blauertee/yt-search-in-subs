@@ -1,7 +1,7 @@
 # Search in all of your youtube subscriptions
 
 ## Usage
-yt-search-in-subs.py \<query\> \<subscription file\>
+`yt-search-in-subs.py \<query\> \<subscription file\>`
 
 you can get the file with all your subscriptions in it from
 https://www.youtube.com/subscription_manager?action_takeout=1
