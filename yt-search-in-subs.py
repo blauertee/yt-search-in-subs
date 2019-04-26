@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 try:
     from bs4 import BeautifulSoup
+    import urllib3
 except ModuleNotFoundError:
-    print("you need to install bs4 to use this script")
+    print("you need to install bs4 and urllib3 to use this script")
     exit(1)
-from urllib.request import urlopen
+    
+
 import sys
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+
+
 
 def lcs(s1, s2):
     matrix = [["" for x in range(len(s2))] for x in range(len(s1))]
@@ -24,15 +30,20 @@ def lcs(s1, s2):
     return len(cs)
 
 
-def get_channel_vids_query(channel_url, query):
+
+
+
+def get_channel_vids_query(channel_url, query, poolmanager):
     query_url = channel_url + '/search?query=' + query.replace(' ', '&')
-    response = urlopen(query_url)
-    html = response.read()
-    # debug -->
-    f = open('tmp.html', 'wb')
-    f.write(html)
-    f.close()
-    # <-- debug
+    while True:
+        response = poolmanager.request('GET', query_url)
+        if response.status == 200:
+            break
+        else:
+            print("having trouble connecting to youtube")
+            time.sleep(0.5)
+    html = response.data
+
     channel_videos = []
 
 
@@ -69,27 +80,26 @@ def gen_video_url(video_id):
 
 def search_in_subs(query, sub_file):
     subs = parse_sub_file(sub_file)
-    query_results = []
     print("the results printed last will be the closest to your query")
     print('Scanning Channels:')
-    c = 1
-    for sid in subs:
-        print(c, '/', len(subs))
-        sub_url = gen_channel_url(sid)
-        channel_vids = get_channel_vids_query(sub_url, query)
-        query_results.append(channel_vids)
-        c+=1
     final_results = []
-    for channel_vids in query_results:
-        final_results += channel_vids
+    future_channel_results = {}
+    channel_result = [None]*len(subs)
+    with ThreadPoolExecutor(max_workers=len(subs)) as executor:
+        http = urllib3.PoolManager()
+        for sid in range(len(subs)):
+            sub_url = gen_channel_url(subs[sid])
+            future_channel_results.update({executor.submit(get_channel_vids_query, sub_url, query, http): sid})
+        c = 0
+        for future in as_completed(future_channel_results):
+            sid=future_channel_results[future]
+            channel_result[sid] = future.result()
+            print(c, "/", len(subs))
+            c+=1
+            
+    for ch in channel_result:
+        final_results += ch
     final_results = sorted(final_results, key=lambda x: lcs(x['title'].lower(), query.lower()))
-    '''have_vids = 1
-    while have_vids:
-        have_vids = 0
-        for channel_vids in query_results:
-            if channel_vids:
-                final_results.append(channel_vids.pop(-1))
-                have_vids += 1'''
     return final_results
 
 def print_videos(query_results):
@@ -109,6 +119,11 @@ if __name__ == '__main__':
         print("subscription file not found")
         exit(1)
     else:
+        now = time.time()
         result = search_in_subs(sys.argv[1], sys.argv[2])
-        print_videos(result)
+        if result:
+            print_videos(result)
+        else:
+            print("No videos found.")
+        print(time.time() - now, "seconds for query")
 
