@@ -2,8 +2,9 @@
 try:
     from bs4 import BeautifulSoup
     import urllib3
+    import certifi
 except ModuleNotFoundError:
-    print("you need to install bs4 and urllib3 to use this script")
+    print("you need to install bs4, urllib3 and certify to use this script")
     exit(1)
     
 
@@ -86,7 +87,7 @@ def search_in_subs(query, sub_file):
     future_channel_results = {}
     channel_result = [None]*len(subs)
     with ThreadPoolExecutor(max_workers=len(subs)) as executor:
-        http = urllib3.PoolManager()
+        http = urllib3.PoolManager(cert_reqs='CERT_REQUIRED',ca_certs=certifi.where())
         for sid in range(len(subs)):
             sub_url = gen_channel_url(subs[sid])
             future_channel_results.update({executor.submit(get_channel_vids_query, sub_url, query, http): sid})
